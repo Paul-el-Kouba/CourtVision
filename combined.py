@@ -134,7 +134,7 @@ async def client():
                         #     s = s.strip()
                         #     s = s[:-1]
 
-                        logger.info("Detected: {}".format(s))
+                        # logger.info("Detected: {}".format(s))
 
                         if time.time() - chunk_time >= 17:
                             writer.release()  # Save Video chunk
