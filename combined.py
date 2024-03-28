@@ -124,15 +124,15 @@ async def client():
 
                         writer.write(output_frame)
 
-                        s = ""
-
-                        for c in np.unique(detections[:, -1]):
-                            n = (detections[:, -1] == c).sum()
-                            s += f"{n} {classes[int(c)]}{'s' * (n > 1)}, "
-
-                        if s != "":
-                            s = s.strip()
-                            s = s[:-1]
+                        # s = ""
+                        #
+                        # for c in np.unique(detections[:, -1]):
+                        #     n = (detections[:, -1] == c).sum()
+                        #     s += f"{n} {classes[int(c)]}{'s' * (n > 1)}, "
+                        #
+                        # if s != "":
+                        #     s = s.strip()
+                        #     s = s[:-1]
 
                         logger.info("Detected: {}".format(s))
 
