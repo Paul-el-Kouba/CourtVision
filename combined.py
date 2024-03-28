@@ -96,11 +96,11 @@ async def client():
             cumulative_weight = 0
 
             # Entire lenght of video
-            while time.time() - start_time < args.time:
+            while time.time() - start_time < args.time*2:
                 try:
                     # Check for response from the server and act accordingly
                     try:
-                        server_response = await asyncio.wait_for(websocket.recv(), timeout=0.0001)
+                        server_response = await asyncio.wait_for(websocket.recv(), timeout=0.000001)
                         decision = server_response.split("_")[1]
                         if decision == "upload" or decision == "delete":
                             q.put(server_response)
