@@ -200,7 +200,7 @@ def upload_thread():
             if decision == "end":
                 break
             elif decision == "upload": 
-                # Upload to db
+                pass
             elif decision == "delete":
                 video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
                 if os.path.exists(video_path):
