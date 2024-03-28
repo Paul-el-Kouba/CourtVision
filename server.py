@@ -29,7 +29,7 @@ async def handler(websocket, path):
                 weights[websocket] = int(split_value[1])
 
             # If we have received values from all 4 clients
-            if len(values) == 2 and first:
+            if len(values) == 1 and first:
                 print("Sending Responses")
 
                 # Standby -- wait for user input
@@ -47,7 +47,7 @@ async def handler(websocket, path):
                     # Clear the 'values' dictionary for the next round
                 print('Responses Sent')
                 values = {}
-            elif len(indexes) == 2:
+            elif len(indexes) == 1:
                 # Find the client with the maximum value
                 print('w', weights)
                 print()

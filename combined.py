@@ -55,7 +55,7 @@ timestamp = "a"
 
 # Starting the Client
 async def client():
-    uri = "ws://172.20.10.3:6969/"  # Use your server's IP address and port
+    uri = "ws://192.168.147.222:6969/"  # Use your server's IP address and port
     flag = False
 
     global timestamp
@@ -177,9 +177,13 @@ async def client():
             flag = False
 
 
-def main_thread():
-    asyncio.get_event_loop().run_until_complete(client())
+#def main_thread():
+#    asyncio.get_event_loop().run_until_complete(client())
 
+def main_thread():
+    loop = asyncio.new_event_loop()  # Create a new event loop
+    asyncio.set_event_loop(loop)     # Set it as the current event loop
+    loop.run_until_complete(client())  # Run the coroutine
 
 def upload_thread():
     global q
@@ -209,8 +213,8 @@ def upload_thread():
 
 if __name__ == "__main__":
 
-    t1 = threading.Thread(target=main_thread())
-    t2 = threading.Thread(target=upload_thread())
+    t1 = threading.Thread(target=main_thread)
+    t2 = threading.Thread(target=upload_thread)
     while True:
         t1.start()
         t2.start()
