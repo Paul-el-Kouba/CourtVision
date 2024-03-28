@@ -100,7 +100,7 @@ async def client():
                 try:
                     # Check for response from the server and act accordingly
                     try:
-                        server_response = await asyncio.wait_for(websocket.recv(), timeout=0.01)
+                        server_response = await asyncio.wait_for(websocket.recv(), timeout=0.0001)
                         decision = server_response.split("_")[1]
                         if decision == "upload" or decision == "delete":
                             q.put(server_response)
@@ -124,7 +124,6 @@ async def client():
 
                         writer.write(output_frame)
 
-                        """
                         s = ""
 
                         for c in np.unique(detections[:, -1]):
@@ -136,7 +135,6 @@ async def client():
                             s = s[:-1]
 
                         logger.info("Detected: {}".format(s))
-"""
 
                         if time.time() - chunk_time >= 17:
                             writer.release()  # Save Video chunk
@@ -159,7 +157,6 @@ async def client():
                 writer.release()
 
                 filename = f'{PATH}/{timestamp}/video_{index}.mp4'
-                index += 1
 
                 # Send cumulative weight for last frame
                 await websocket.send(f"{index}_{cumulative_weight}")
