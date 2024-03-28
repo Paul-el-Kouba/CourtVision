@@ -198,6 +198,7 @@ def upload_thread():
             decision = response[1]
 
             if decision == "end":
+                logger.info("Script Ended")
                 break
             elif decision == "upload": 
                 pass
