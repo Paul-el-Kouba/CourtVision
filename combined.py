@@ -100,7 +100,7 @@ async def client():
                 try:
                     # Check for response from the server and act accordingly
                     try:
-                        server_response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
+                        server_response = await asyncio.wait_for(websocket.recv(), timeout=0.01)
                         decision = server_response.split("_")[1]
                         if decision == "upload" or decision == "delete":
                             q.put(server_response)
