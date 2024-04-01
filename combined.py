@@ -11,6 +11,7 @@ import websockets
 import numpy as np
 from utils import YOLOv5s
 from datetime import datetime
+from firebase_admin import credentials, initialize_app, storage
 
 PATH = os.getcwd()
 
@@ -27,6 +28,10 @@ parser.add_argument("--iou", "-it", type=float, default=0.1, help="Detections IO
 parser.add_argument("--wb", "-b", type=int, default=10, help="Weight of basketball")
 parser.add_argument("--wp", "-p", type=int, default=7, help="Weight of player")
 args = parser.parse_args()
+
+# Setting up Database
+cred = credentials.Certificate("./serviceAccountKey.json")
+initialize_app(cred, {'storageBucket': 'database-c8de2.appspot.com'})
 
 # Loading Detection Model and Classes
 model = YOLOv5s(args.model, args.labels, args.conf, args.iou)
@@ -200,13 +205,25 @@ def upload_thread():
 
             print (decision)
 
+            video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
+
             if decision == "end":
                 logger.info("Script Ended")
                 break
             elif decision == "upload": 
-                pass
+                # Upload video_path (local) to database_path (database)
+                database_path = f"{timestamp}/video_{index}"
+                bucket = storage.bucket()
+                blob = bucket.blob(database_path)
+                blob.upload_from_filename(video_path)
+
+                # optional
+                blob.make_public()
+                print(f"video_{index}'s url: ", blob.public_url)
+
+                # we can delete the video from the local storage
+                # afterwards if needed
             elif decision == "delete":
-                video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
                 if os.path.exists(video_path):
                     os.remove(video_path)
 
