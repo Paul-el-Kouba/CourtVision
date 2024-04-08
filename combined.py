@@ -203,7 +203,7 @@ def upload_thread():
             index = response[0]
             decision = response[1]
 
-            print (decision)
+            print(decision)
 
             video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
 
