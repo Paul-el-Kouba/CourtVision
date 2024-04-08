@@ -8,6 +8,7 @@ import logging
 import argparse
 import threading
 import websockets
+import subprocess
 import numpy as np
 from utils import YOLOv5s
 from datetime import datetime
@@ -55,7 +56,9 @@ fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
 # Threading Variable
 q = queue.Queue()
+streamq = queue.Queue()
 timestamp = "a"
+decision = "b"
 
 
 # Starting the Client
@@ -109,6 +112,7 @@ async def client():
                         decision = server_response.split("_")[1]
                         if decision == "upload" or decision == "delete":
                             q.put(server_response)
+                            streamq.put(server_response)
                         server_response = "placeholder_placeholder"
                     except asyncio.TimeoutError:
                         pass
@@ -172,6 +176,7 @@ async def client():
                         decision = server_response.split("_")[1]
                         if decision == "upload" or decision == "delete":
                             q.put(server_response)
+                            streamq.put(server_response)
                         server_response = "placeholder_placeholder"
                     except asyncio.TimeoutError:
                         pass
@@ -179,16 +184,15 @@ async def client():
             camera.release()
             cv2.destroyAllWindows()
             q.put(f"1_end")
+            streamq.put(f"1_end")
             flag = False
 
-
-#def main_thread():
-#    asyncio.get_event_loop().run_until_complete(client())
 
 def main_thread():
     loop = asyncio.new_event_loop()  # Create a new event loop
     asyncio.set_event_loop(loop)     # Set it as the current event loop
     loop.run_until_complete(client())  # Run the coroutine
+
 
 def upload_thread():
     global q
@@ -208,10 +212,12 @@ def upload_thread():
             video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
 
             if decision == "end":
+                streamq.put("end")
                 logger.info("Script Ended")
                 break
             elif decision == "upload": 
                 # Upload video_path (local) to database_path (database)
+                streamq.put(video_path)
                 database_path = f"{timestamp}/video_{index}"
                 bucket = storage.bucket()
                 blob = bucket.blob(database_path)
@@ -228,13 +234,43 @@ def upload_thread():
                     os.remove(video_path)
 
 
+def streaming():
+    global streamq
+    global timestamp
+    while True:
+        if streamq.empty():
+            continue
+        else:
+            vid = streamq.get()
+            if vid == "end":
+                return
+            else:
+                ffmpeg_command = [
+                    "ffmpeg",
+                    "-re",
+                    "-i",
+                    vid,
+                    "map", "0:v",
+                    "-an",
+                    "-c:v", "libvpx",
+                    "-b:v", "1M",
+                    "-f", "rtp", "rtp://172.20.10.3:5105"
+                ]
+                subprocess.run(ffmpeg_command)
+
+
 if __name__ == "__main__":
 
     t1 = threading.Thread(target=main_thread)
     t2 = threading.Thread(target=upload_thread)
+    t3 = threading.Thread(target=streaming)
     while True:
         t1.start()
         t2.start()
+        t3.start()
 
         t1.join()
         t2.join()
+        t3.join()
+
+
