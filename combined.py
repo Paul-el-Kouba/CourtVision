@@ -250,7 +250,7 @@ def streaming():
                     "-re",
                     "-i",
                     vid,
-                    "map", "0:v",
+                    "-map", "0:v",
                     "-an",
                     "-c:v", "libvpx",
                     "-b:v", "1M",
