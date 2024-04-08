@@ -63,7 +63,7 @@ decision = "b"
 
 # Starting the Client
 async def client():
-    uri = "ws://192.168.147.222:6969/"  # Use your server's IP address and port
+    uri = "ws://172.20.10.5:6969/"  # Use your server's IP address and port
     flag = False
 
     global timestamp
