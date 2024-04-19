@@ -60,6 +60,10 @@ streamq = queue.Queue()
 timestamp = "a"
 decision = "b"
 
+frame_q = queue.Queue()
+weights_q = 0
+endInference = False
+
 
 # Starting the Client
 async def client():
@@ -67,6 +71,9 @@ async def client():
     flag = False
 
     global timestamp
+    global weights_q
+    global frame_q
+    global endInference
 
     async with websockets.connect(uri) as websocket:
         # Send to server so it knows a client is connected
@@ -88,7 +95,7 @@ async def client():
 
         while flag:
 
-            timestamp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S') 
+            timestamp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
             os.mkdir(f"{PATH}/{timestamp}")
 
             index = 0
@@ -101,10 +108,9 @@ async def client():
 
             writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
 
-            cumulative_weight = 0
-
+            count = 0
             # Entire lenght of video
-            while time.time() - start_time < args.time*2:
+            while time.time() - start_time < args.time:
                 try:
                     # Check for response from the server and act accordingly
                     try:
@@ -123,15 +129,12 @@ async def client():
                         break
 
                     else:
-                        # Run Inference
-                        input_frame = model.preprocess_frame(frame)
-                        output = model.inference(input_frame)
-                        detections = model.postprocess(output)
-                        output_frame, frame_weight = model.draw_bbox_weights(frame, detections, args.wb, args.wp)
 
-                        cumulative_weight += frame_weight
+                        if count % 4 == 0:
+                            frame_q.put(frame)
+                        count += 1
 
-                        writer.write(output_frame)
+                        writer.write(frame)
 
                         # s = ""
                         #
@@ -145,14 +148,14 @@ async def client():
 
                         # logger.info("Detected: {}".format(s))
 
-                        if time.time() - chunk_time >= 9:
+                        if time.time() - chunk_time >= 3:
                             writer.release()  # Save Video chunk
 
                             # Send cumulative weight
-                            await websocket.send(f"{index}_{cumulative_weight}")
+                            await websocket.send(f"{index}_{weights_q}")
 
                             index += 1
-                            cumulative_weight = 0  # Reset weights for next chunk
+                            weights_q = 0  # Reset weights for next chunk
                             filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
                             writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
                             chunk_time = time.time()
@@ -168,7 +171,7 @@ async def client():
                 filename = f'{PATH}/{timestamp}/video_{index}.mp4'
 
                 # Send cumulative weight for last frame
-                await websocket.send(f"{index}_{cumulative_weight}")
+                await websocket.send(f"{index}_{weights_q}")
 
                 while True:
                     try:
@@ -186,11 +189,34 @@ async def client():
             q.put(f"1_end")
             streamq.put(f"1_end")
             flag = False
+            endInference = True
+
+
+def inference_thread():
+    global frame_q
+    global weights_q
+    global endInference
+
+    while True:
+        if frame_q.empty():
+            continue
+        elif endInference:
+            endInference = False
+            break
+        else:
+            frame = frame_q.get()
+            # Run Inference
+            input_frame = model.preprocess_frame(frame)
+            output = model.inference(input_frame)
+            detections = model.postprocess(output)
+            output_frame, frame_weight = model.draw_bbox_weights(frame, detections, args.wb, args.wp)
+
+            weights_q += frame_weight
 
 
 def main_thread():
     loop = asyncio.new_event_loop()  # Create a new event loop
-    asyncio.set_event_loop(loop)     # Set it as the current event loop
+    asyncio.set_event_loop(loop)  # Set it as the current event loop
     loop.run_until_complete(client())  # Run the coroutine
 
 
@@ -215,7 +241,7 @@ def upload_thread():
                 streamq.put("end")
                 logger.info("Script Ended")
                 break
-            elif decision == "upload": 
+            elif decision == "upload":
                 # Upload video_path (local) to database_path (database)
                 streamq.put(video_path)
                 database_path = f"{timestamp}/video_{index}"
@@ -264,13 +290,14 @@ if __name__ == "__main__":
     t1 = threading.Thread(target=main_thread)
     t2 = threading.Thread(target=upload_thread)
     t3 = threading.Thread(target=streaming)
+    t4 = threading.Thread(target=inference_thread)
     while True:
         t1.start()
         t2.start()
         t3.start()
+        t4.start()
 
         t1.join()
         t2.join()
         t3.join()
-
-
+        t4.join()
