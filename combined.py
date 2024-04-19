@@ -145,7 +145,7 @@ async def client():
 
                         # logger.info("Detected: {}".format(s))
 
-                        if time.time() - chunk_time >= 17:
+                        if time.time() - chunk_time >= 9:
                             writer.release()  # Save Video chunk
 
                             # Send cumulative weight
