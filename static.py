@@ -28,6 +28,8 @@ parser.add_argument("--conf", "-ct", type=float, default=0.5, help="Detection co
 parser.add_argument("--iou", "-it", type=float, default=0.1, help="Detections IOU threshold")
 parser.add_argument("--wb", "-b", type=int, default=10, help="Weight of basketball")
 parser.add_argument("--wp", "-p", type=int, default=7, help="Weight of player")
+parser.add_argument("--gray", "-g", help="Normal or Grayscale")
+
 args = parser.parse_args()
 
 # Setting up Database
@@ -206,6 +208,7 @@ def inference_thread():
         else:
             frame = frame_q.get()
             # Run Inference
+
             input_frame = model.preprocess_frame(frame)
             output = model.inference(input_frame)
             detections = model.postprocess(output)
