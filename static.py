@@ -111,7 +111,7 @@ async def client():
             writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
 
             count = 0
-            # Entire lenght of video
+            # Entire length of video
             while time.time() - start_time < args.time:
                 try:
                     # Check for response from the server and act accordingly
@@ -209,6 +209,9 @@ def inference_thread():
             frame = frame_q.get()
             # Run Inference
 
+            if args.gray:
+                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
             input_frame = model.preprocess_frame(frame)
             output = model.inference(input_frame)
             detections = model.postprocess(output)
@@ -257,13 +260,13 @@ def upload_thread():
                 print(f"video_{index}'s url: ", blob.public_url)
 
                 # we can delete the video from the local storage
-                # afterwards if needed
+                # afterward if needed
             elif decision == "delete":
                 if os.path.exists(video_path):
                     os.remove(video_path)
 
 
-def streaming():
+def streaming_thread():
     global streamq
     global timestamp
     while True:
@@ -292,15 +295,15 @@ if __name__ == "__main__":
 
     t1 = threading.Thread(target=main_thread)
     t2 = threading.Thread(target=upload_thread)
-    #t3 = threading.Thread(target=streaming)
+    t3 = threading.Thread(target=streaming_thread)
     t4 = threading.Thread(target=inference_thread)
     while True:
         t1.start()
         t2.start()
-        #t3.start()
+        t3.start()
         t4.start()
 
         t1.join()
         t2.join()
-        #t3.join()
+        t3.join()
         t4.join()
