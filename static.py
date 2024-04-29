@@ -28,7 +28,7 @@ parser.add_argument("--conf", "-ct", type=float, default=0.5, help="Detection co
 parser.add_argument("--iou", "-it", type=float, default=0.1, help="Detections IOU threshold")
 parser.add_argument("--wb", "-b", type=int, default=10, help="Weight of basketball")
 parser.add_argument("--wp", "-p", type=int, default=7, help="Weight of player")
-parser.add_argument("--gray", "-g", help="Normal or Grayscale")
+parser.add_argument("--gray", "-g", action='store_true', help="Normal or Grayscale")
 
 args = parser.parse_args()
 
@@ -69,7 +69,7 @@ endInference = False
 
 # Starting the Client
 async def client():
-    uri = "ws://172.20.10.3:6969/"  # Use your server's IP address and port
+    uri = "ws://172.20.10.4:6969/"  # Use your server's IP address and port
     flag = False
 
     global timestamp
@@ -288,7 +288,7 @@ def streaming_thread():
                     "-an",
                     "-c:v", "libvpx",
                     "-b:v", "1M",
-                    "-f", "rtp", "rtp://172.20.10.4:5105"
+                    "-f", "rtp", "rtp://172.20.10.4:5104"
                 ]
                 subprocess.run(ffmpeg_command)
 
