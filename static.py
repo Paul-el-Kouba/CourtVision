@@ -69,7 +69,7 @@ endInference = False
 
 # Starting the Client
 async def client():
-    uri = "ws://172.20.10.3:6969/"  # Use your server's IP address and port
+    uri = "ws://172.20.10.4:6969/"  # Use your server's IP address and port
     flag = False
 
     global timestamp
@@ -286,7 +286,7 @@ def streaming_thread():
                     "-an",
                     "-c:v", "libvpx",
                     "-b:v", "1M",
-                    "-f", "rtp", "rtp://172.20.10.4:5105"
+                    "-f", "rtp", "rtp://172.20.10.4:5104"
                 ]
                 subprocess.run(ffmpeg_command)
 
