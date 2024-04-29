@@ -32,7 +32,6 @@ parser.add_argument("--gray", "-g", help="Normal or Grayscale")
 
 args = parser.parse_args()
 
-
 controller = PID(0.000015, 0, 0.000001)
 pwm = PWM(1, 0)
 pwm.frequency = 50
@@ -66,7 +65,7 @@ camera.set(cv2.CAP_PROP_FPS, fps)
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
 # Initialize Variables
-q = queue.Queue()
+q = queue.Queue() #upload-delete
 streamq = queue.Queue()
 timestamp = "a"
 decision = "b"
@@ -74,15 +73,19 @@ decision = "b"
 frame_q = queue.Queue()
 endInference = False
 
-trackq = queue.Queue()
-
 m_or_s = False
 switch = False
 
+startFilming = False
+
+main_cam = False
 
 async def client():
     uri = "ws://172.20.10.3:6969/"  # Use your server's IP address and port
     flag = False
+
+    global main_cam
+    global startFilming
     global m_or_s
 
     async with websockets.connect(uri) as websocket:
@@ -106,53 +109,48 @@ async def client():
             timestamp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
             os.mkdir(f"{PATH}/{timestamp}")
 
-            index = 0
-            filename = f'{PATH}/{timestamp}/video_{index}.mp4'
-
             # Running Inference and Storing it directly
             logger.info("Opening stream on device: {}".format(args.device))
+            startFilming = True
 
-            start_time = chunk_time = time.time()
+            while startFilming:
+                if frame_q.empty():
+                    continue
+                else:
+                    frame = frame_q.get()
 
-            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
+                    input = model.preprocess_frame(frame)
 
-            count = 0
-            # Entire length of video
-            while time.time() - start_time < args.time:
-                try:
-                    # Check for response from the server and act accordingly
-                    res, frame = camera.read()
-                    if res is False:
-                        logger.error("Empty image received")
-                        break
+                    output = model.inference(input)
 
+                    detections = model.postprocess(output)
+
+                    # s = ""
+                    #
+                    # for c in np.unique(detections[:, -1]):
+                    #     n = (detections[:, -1] == c).sum()
+                    #     s += f"{n} {classes[int(c)]}{'s' * (n > 1)}, "
+                    #
+                    # if s != "":
+                    #     s = s.strip()
+                    #     s = s[:-1]
+                    #
+                    # logger.info("Detected: {}".format(s))
+
+                    if len(detections) >= 1:
+                        main_cam = True
+                        center_frame = frame.shape[1] / 2
+
+                        center_obj = (detections[0][0] + detections[0][2]) / 2
+
+                        error = center_obj - center_frame
+
+                        corr = controller(error)
+
+                        pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
+                        print(corr, error, pwm.duty_cycle)
                     else:
-
-                        if count % 4 == 0:
-                            frame_q.put(frame)
-                        count += 1
-
-                        writer.write(frame)
-
-                        if time.time() - chunk_time >= 3 or switch:
-                            if switch:
-                                switch = False
-                            writer.release()  # Save Video chunk
-
-                            # Send cumulative weight
-                            await websocket.send(f"{index}_{weights_q}")
-
-                            index += 1
-                            weights_q = 0  # Reset weights for next chunk
-                            filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
-                            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
-                            chunk_time = time.time()
-
-                        cv2.waitKey(1)
-
-
-                except KeyboardInterrupt:
-                    break
+                        main_cam = False
 
 
 def main_thread():
@@ -183,7 +181,7 @@ def upload_thread():
                 streamq.put("end")
                 logger.info("Script Ended")
                 break
-            elif decision == "upload":
+            elif main_cam:
                 # Upload video_path (local) to database_path (database)
                 streamq.put(video_path)
                 database_path = f"{timestamp}/video_{index}"
@@ -197,7 +195,7 @@ def upload_thread():
 
                 # we can delete the video from the local storage
                 # afterward if needed
-            elif decision == "delete":
+            elif not main_cam:
                 if os.path.exists(video_path):
                     os.remove(video_path)
 
@@ -229,58 +227,47 @@ def streaming_thread():
 
 def tracking_thread():
 
-    global trackq
-
     while True:
+        if startFilming:
+            index = 0
+            filename = f'{PATH}/{timestamp}/video_{index}.mp4'
 
-        if trackq.empty():
-            continue
-        else:
+            start_time = chunk_time = time.time()
 
-            frame = trackq.get()
+            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
 
-            input = model.preprocess_frame(frame)
+            count = 0
 
-            output = model.inference(input)
+            while time.time() - start_time < args.time:
+                try:
+                    # Check for response from the server and act accordingly
+                    res, frame = camera.read()
+                    if res is False:
+                        logger.error("Empty image received")
+                        break
 
-            detections = model.postprocess(output)
+                    else:
 
-            s = ""
+                        if count % 4 == 0:
+                            frame_q.put(frame)
+                        count += 1
 
-            for c in np.unique(detections[:, -1]):
-                n = (detections[:, -1] == c).sum()
-                s += f"{n} {classes[int(c)]}{'s' * (n > 1)}, "
+                        writer.write(frame)
 
-            if s != "":
-                s = s.strip()
-                s = s[:-1]
+                        if time.time() - chunk_time >= 2 or switch:
+                            if switch:
+                                switch = False
+                            writer.release()  # Save Video chunk
 
-            logger.info("Detected: {}".format(s))
+                            index += 1
+                            filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
+                            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
+                            chunk_time = time.time()
 
-            if len(detections) >= 1:
-                center_frame = frame.shape[1] / 2
-
-                center_obj = (detections[0][0] + detections[0][2]) / 2
-
-                error = center_obj - center_frame
-
-                # try:
-                #     server_response = await
-                #     asyncio.wait_for(websocket.recv(), timeout=0.000001)
-                #     decision = server_response.split("_")[1]
-                #     if decision == "upload" or decision == "delete":
-                #         q.put(server_response)
-                #         streamq.put(server_response)
-                #     server_response = "placeholder_placeholder"
-                # except asyncio.TimeoutError:
-                #     pass
-
-
-                corr = controller(error)
-
-                pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
-                print(corr, error, pwm.duty_cycle)
-
+                        cv2.waitKey(1)
+                except KeyboardInterrupt:
+                    break
+            break
 
 if __name__ == "__main__":
 

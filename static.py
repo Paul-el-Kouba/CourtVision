@@ -150,7 +150,7 @@ async def client():
 
                         # logger.info("Detected: {}".format(s))
 
-                        if time.time() - chunk_time >= 3:
+                        if time.time() - chunk_time >= 1:
                             writer.release()  # Save Video chunk
 
                             # Send cumulative weight
@@ -161,6 +161,8 @@ async def client():
                             filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
                             writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
                             chunk_time = time.time()
+                            frame_q = queue.Queue()
+                            count = 0
 
                         cv2.waitKey(1)
 
