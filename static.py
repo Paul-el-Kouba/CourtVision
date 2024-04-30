@@ -245,6 +245,7 @@ def upload_thread():
 
             video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
 
+
             if decision == "end":
                 streamq.put("end")
                 logger.info("Script Ended")
@@ -297,15 +298,15 @@ if __name__ == "__main__":
 
     t1 = threading.Thread(target=main_thread)
     t2 = threading.Thread(target=upload_thread)
-    t3 = threading.Thread(target=streaming_thread)
+    #t3 = threading.Thread(target=streaming_thread)
     t4 = threading.Thread(target=inference_thread)
     while True:
         t1.start()
         t2.start()
-        t3.start()
+      #  t3.start()
         t4.start()
 
         t1.join()
         t2.join()
-        t3.join()
+       # t3.join()
         t4.join()
