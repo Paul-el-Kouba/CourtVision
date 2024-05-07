@@ -38,7 +38,7 @@ args = parser.parse_args()
 controller = PID(0.000015, 0, 0.000001)
 pwm = PWM(1, 0)
 pwm.frequency = 50
-pwm.duty_cycle = 0.9
+pwm.duty_cycle = 0.905
 pwm.enable()
 
 time.sleep(1)
@@ -158,7 +158,7 @@ async def client():
 
                     corr = controller(error)
 
-                    pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.865, 0.965)
+                    pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.8975, 0.9125)
                     print("pwm: " + str(pwm.duty_cycle))
                     print("corr: " + str(corr))
                     corr_q += corr
