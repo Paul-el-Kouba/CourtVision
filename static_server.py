@@ -61,10 +61,6 @@ async def handler(websocket, path):
                 weights = {}
                 indexes = {}
 
-            print("ii", len(indexes))
-            print("ww", len(weights))
-            print("vv", len(values))
-
         except Exception:
             pass
 
