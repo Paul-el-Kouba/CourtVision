@@ -28,7 +28,10 @@ parser.add_argument("--device", "-dev", type=int, default=1,
 parser.add_argument("--time", "-t", type=int, default=300, help="Length of video to record")
 parser.add_argument("--conf", "-ct", type=float, default=0.5, help="Detection confidence threshold")
 parser.add_argument("--iou", "-it", type=float, default=0.1, help="Detections IOU threshold")
-parser.add_argument("--gray", "-g", help="Normal or Grayscale")
+parser.add_argument("--wb", "-b", type=int, default=10, help="Weight of basketball")
+parser.add_argument("--wp", "-p", type=int, default=7, help="Weight of player")
+parser.add_argument("--gray", "-g", action='store_true', help="Normal or Grayscale")
+parser.add_argument("--main", "-s", action="store_true", help="Main or sMain")
 
 args = parser.parse_args()
 
@@ -64,29 +67,36 @@ camera.set(cv2.CAP_PROP_FRAME_HEIGHT, resolution[1])
 camera.set(cv2.CAP_PROP_FPS, fps)
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 
-# Initialize Variables
-q = queue.Queue() #upload-delete
+# Threading Variable
+q = queue.Queue()
 streamq = queue.Queue()
 timestamp = "a"
 decision = "b"
 
 frame_q = queue.Queue()
+weights_q = 0
+corr_q = 0
 endInference = False
 
+start_Filming = False
+
 m_or_s = False
-switch = False
 
-startFilming = False
+send_q = queue.Queue()
 
-main_cam = False
 
+# Starting the Client
 async def client():
-    uri = "ws://172.20.10.3:6969/"  # Use your server's IP address and port
+    uri = "ws://172.20.10.4:6969/"  # Use your server's IP address and port
     flag = False
 
-    global main_cam
-    global startFilming
+    global timestamp
+    global corr_q
+    global weights_q
+    global frame_q
+    global endInference
     global m_or_s
+    global start_Filming
 
     async with websockets.connect(uri) as websocket:
         # Send to server so it knows a client is connected
@@ -99,58 +109,135 @@ async def client():
                 response = await asyncio.wait_for(websocket.recv(), timeout=1.0)
                 if response == "start":
                     flag = True
+                    start_Filming = True
+                    if args.main:
+                        m_or_s = True
                     break
             except asyncio.TimeoutError:
                 # If no response is received within the timeout, keep waiting
                 pass
 
         # Once "start" from the server is received, enter this loop and start working
+
         while flag:
-            timestamp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
-            os.mkdir(f"{PATH}/{timestamp}")
+            try:
+                server_response = await asyncio.wait_for(websocket.recv(), timeout=0.000001)
+                decision = server_response.split("_")[1]
+                if decision == "main" or decision == "sec":
+                    q.put(server_response)
+                    streamq.put(server_response)
+                server_response = "batata_batata_batata"
+            except asyncio.TimeoutError:
+                pass
 
-            # Running Inference and Storing it directly
-            logger.info("Opening stream on device: {}".format(args.device))
-            startFilming = True
+            if send_q.empty():
+                pass
+            else:
+                message = send_q.get()
+                await websocket.send(message)
 
-            while startFilming:
-                if frame_q.empty():
-                    continue
+            if frame_q.empty():
+                pass
+            else:
+                frame = frame_q.get()
+                if args.gray:
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+                input_frame = model.preprocess_frame(frame)
+                output = model.inference(input_frame)
+                detections = model.postprocess(output)
+                output_frame, frame_weight = model.draw_bbox_weights(frame, detections, args.wb, args.wp)
+
+                if len(detections) >= 1:
+                    main_cam = True
+                    center_frame = frame.shape[1] / 2
+
+                    center_obj = (detections[0][0] + detections[0][2]) / 2
+
+                    error = center_obj - center_frame
+
+                    corr = controller(error)
+
+                    pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
+
+                weights_q += frame_weight
+                corr_q += corr
+
+
+def filming_thread():
+    global frame_q
+    global timestamp
+    global endInference
+    global send_q
+    global weights_q
+    global corr_q
+
+    while not start_Filming:
+        continue
+    while start_Filming:
+        timestamp = datetime.now().strftime('%d-%m-%Y_%H-%M-%S')
+        os.mkdir(f"{PATH}/{timestamp}")
+
+        index = 0
+        filename = f'{PATH}/{timestamp}/video_{index}.mp4'
+
+        # Running Inference and Storing it directly
+        logger.info("Opening stream on device: {}".format(args.device))
+
+        start_time = chunk_time = time.time()
+
+        writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
+
+        count = 0
+        # Entire length of video
+        while time.time() - start_time < args.time:
+            try:
+                res, frame = camera.read()
+                if res is False:
+                    logger.error("Empty image received")
+                    break
+
                 else:
-                    frame = frame_q.get()
 
-                    input = model.preprocess_frame(frame)
+                    if count % 4 == 0:
+                        frame_q.put(frame)
+                    count += 1
 
-                    output = model.inference(input)
+                    writer.write(frame)
 
-                    detections = model.postprocess(output)
+                    if time.time() - chunk_time >= 1:
+                        writer.release()  # Save Video chunk
 
-                    # s = ""
-                    #
-                    # for c in np.unique(detections[:, -1]):
-                    #     n = (detections[:, -1] == c).sum()
-                    #     s += f"{n} {classes[int(c)]}{'s' * (n > 1)}, "
-                    #
-                    # if s != "":
-                    #     s = s.strip()
-                    #     s = s[:-1]
-                    #
-                    # logger.info("Detected: {}".format(s))
+                        send_q.put(f"{index}_{weights_q}_{corr_q}")
 
-                    if len(detections) >= 1:
-                        main_cam = True
-                        center_frame = frame.shape[1] / 2
+                        index += 1
+                        weights_q = 0  # Reset weights for next chunk
+                        corr_q = 0
+                        filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
+                        writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
+                        chunk_time = time.time()
+                        frame_q = queue.Queue()
+                        count = 0
 
-                        center_obj = (detections[0][0] + detections[0][2]) / 2
+                    cv2.waitKey(1)
 
-                        error = center_obj - center_frame
+            except KeyboardInterrupt:
+                break
 
-                        corr = controller(error)
+        else:
+            writer.release()
 
-                        pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
-                        print(corr, error, pwm.duty_cycle)
-                    else:
-                        main_cam = False
+            filename = f'{PATH}/{timestamp}/video_{index}.mp4'
+
+            # Send cumulative weight for last frame
+            send_q.put(f"{index}_{weights_q}_{corr_q}")
+
+        camera.release()
+        cv2.destroyAllWindows()
+        q.put(f"1_end")
+        streamq.put(f"1_end")
+        flag = False
+        endInference = True
 
 
 def main_thread():
@@ -165,13 +252,13 @@ def upload_thread():
     global m_or_s
 
     while True:
-
         if q.empty():
             continue
         else:
             response = q.get().split("_")
             index = response[0]
             decision = response[1]
+            max_cor = response[2]
 
             print(decision)
 
@@ -181,7 +268,8 @@ def upload_thread():
                 streamq.put("end")
                 logger.info("Script Ended")
                 break
-            elif main_cam:
+            elif decision == "main":
+                m_or_s = True
                 # Upload video_path (local) to database_path (database)
                 streamq.put(video_path)
                 database_path = f"{timestamp}/video_{index}"
@@ -195,7 +283,10 @@ def upload_thread():
 
                 # we can delete the video from the local storage
                 # afterward if needed
-            elif not main_cam:
+            elif decision == "sec":
+                m_or_s = False
+                pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.865, 0.965)
+
                 if os.path.exists(video_path):
                     os.remove(video_path)
 
@@ -220,68 +311,25 @@ def streaming_thread():
                     "-an",
                     "-c:v", "libvpx",
                     "-b:v", "1M",
-                    "-f", "rtp", "rtp://172.20.10.4:5105"
+                    "-f", "rtp", "rtp://172.20.10.4:5104"
                 ]
                 subprocess.run(ffmpeg_command)
 
-
-def tracking_thread():
-
-    while True:
-        if startFilming:
-            index = 0
-            filename = f'{PATH}/{timestamp}/video_{index}.mp4'
-
-            start_time = chunk_time = time.time()
-
-            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
-
-            count = 0
-
-            while time.time() - start_time < args.time:
-                try:
-                    # Check for response from the server and act accordingly
-                    res, frame = camera.read()
-                    if res is False:
-                        logger.error("Empty image received")
-                        break
-
-                    else:
-
-                        if count % 4 == 0:
-                            frame_q.put(frame)
-                        count += 1
-
-                        writer.write(frame)
-
-                        if time.time() - chunk_time >= 2 or switch:
-                            if switch:
-                                switch = False
-                            writer.release()  # Save Video chunk
-
-                            index += 1
-                            filename = f'{PATH}/{timestamp}/video_{index}.mp4'  # Update filename index
-                            writer = cv2.VideoWriter(filename, fourcc, fps, resolution)
-                            chunk_time = time.time()
-
-                        cv2.waitKey(1)
-                except KeyboardInterrupt:
-                    break
-            break
 
 if __name__ == "__main__":
 
     t1 = threading.Thread(target=main_thread)
     t2 = threading.Thread(target=upload_thread)
-    t3 = threading.Thread(target=streaming_thread)
-    t4 = threading.Thread(target=tracking_thread)
+    # t3 = threading.Thread(target=streaming_thread)
+    t4 = threading.Thread(target=filming_thread)
+
     while True:
         t1.start()
         t2.start()
-        t3.start()
+        # t3.start()
         t4.start()
 
         t1.join()
         t2.join()
-        t3.join()
+        # t3.join()
         t4.join()

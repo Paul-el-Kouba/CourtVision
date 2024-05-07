@@ -245,7 +245,6 @@ def upload_thread():
 
             video_path = f"{PATH}/{timestamp}/video_{index}.mp4"
 
-
             if decision == "end":
                 streamq.put("end")
                 logger.info("Script Ended")
