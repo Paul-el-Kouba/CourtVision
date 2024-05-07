@@ -160,8 +160,8 @@ async def client():
 
                     pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
 
+                    corr_q += corr
                 weights_q += frame_weight
-                corr_q += corr
 
 
 def filming_thread():
