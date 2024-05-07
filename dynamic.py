@@ -286,7 +286,7 @@ def upload_thread():
                 # afterward if needed
             elif decision == "sec":
                 m_or_s = False
-                pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.865, 0.965)
+                pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.8975, 0.9125)
 
                 if os.path.exists(video_path):
                     os.remove(video_path)
