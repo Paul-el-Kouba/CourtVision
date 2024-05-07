@@ -87,7 +87,7 @@ send_q = queue.Queue()
 
 # Starting the Client
 async def client():
-    uri = "ws://170.20.10.3:6969/"  # Use your server's IP address and port
+    uri = "ws://170.20.10.4:6969/"  # Use your server's IP address and port
     flag = False
 
     global timestamp
