@@ -158,7 +158,7 @@ async def client():
 
                     corr = controller(error)
 
-                    pwm.duty_cycle = np.clip(pwm.duty_cycle + corr, 0.865, 0.965)
+                    pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.865, 0.965)
 
                     corr_q += corr
                 weights_q += frame_weight
@@ -258,7 +258,7 @@ def upload_thread():
             response = q.get().split("_")
             index = response[0]
             decision = response[1]
-            max_cor = response[2]
+            max_cor = float(response[2])
 
             print(decision)
 
