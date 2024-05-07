@@ -159,7 +159,8 @@ async def client():
                     corr = controller(error)
 
                     pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.865, 0.965)
-
+                    print("pwm: " + pwm.duty_cycle)
+                    print("corr: " + corr)
                     corr_q += corr
                 weights_q += frame_weight
 
