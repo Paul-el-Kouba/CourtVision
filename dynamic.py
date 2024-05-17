@@ -122,10 +122,14 @@ async def client():
         while flag:
             try:
                 server_response = await asyncio.wait_for(websocket.recv(), timeout=0.000001)
-                decision = server_response.split("_")[1]
-                if decision == "main" or decision == "sec":
+                decision = server_response.split("_")
+                if decision[1] == "main":
                     q.put(server_response)
                     streamq.put(server_response)
+                elif decision[1] == "sec":
+                    max_cor = float(decision[2])
+
+                    pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.8975, 0.9125)
                 server_response = "batata_batata_batata"
             except asyncio.TimeoutError:
                 pass
@@ -259,7 +263,6 @@ def upload_thread():
             response = q.get().split("_")
             index = response[0]
             decision = response[1]
-            max_cor = float(response[2])
 
             print(decision)
 
@@ -286,7 +289,6 @@ def upload_thread():
                 # afterward if needed
             elif decision == "sec":
                 m_or_s = False
-                pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.8975, 0.9125)
 
                 if os.path.exists(video_path):
                     os.remove(video_path)
