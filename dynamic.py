@@ -123,13 +123,9 @@ async def client():
             try:
                 server_response = await asyncio.wait_for(websocket.recv(), timeout=0.000001)
                 decision = server_response.split("_")
-                if decision[1] == "main":
+                if decision[1] == "main" or decision[1] == 'sec':
                     q.put(server_response)
                     streamq.put(server_response)
-                elif decision[1] == "sec":
-                    max_cor = float(decision[2])
-
-                    pwm.duty_cycle = np.clip(pwm.duty_cycle - max_cor, 0.8975, 0.9125)
                 server_response = "batata_batata_batata"
             except asyncio.TimeoutError:
                 pass
@@ -162,7 +158,7 @@ async def client():
 
                     corr = controller(error)
 
-                    pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.8975, 0.9125)
+                    pwm.duty_cycle = np.clip(pwm.duty_cycle + float(corr), 0.8985, 0.9115)
                     print("pwm: " + str(pwm.duty_cycle))
                     print("corr: " + str(corr))
                     corr_q += corr
